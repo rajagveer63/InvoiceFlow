@@ -48,6 +48,11 @@ export default function Home() {
   const [checking, setChecking] = useState(false);
   const [lastCheck, setLastCheck] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [runFilter, setRunFilter] = useState<"ALL" | "APPROVED" | "HOLD" | "REJECTED">("ALL");
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const runsRef = useRef<HTMLElement>(null);
+  const uploadRef = useRef<HTMLElement>(null);
   const localPdf = useRef<Record<string, string>>({});
   const checkingRef = useRef(false);
 
@@ -193,6 +198,27 @@ export default function Home() {
     await refresh();
   };
 
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return all.filter((r) => {
+      if (runFilter !== "ALL" && effectiveDecision(r) !== runFilter) return false;
+      if (!q) return true;
+      const v = view(r);
+      return [r.fileName, r.sender, v.match?.vendorName, v.extracted?.vendor_name, v.extracted?.invoice_number, v.decision?.headline]
+        .some((x) => x && String(x).toLowerCase().includes(q));
+    });
+  }, [all, runFilter, query]);
+  const countOf = (d: "APPROVED" | "HOLD" | "REJECTED") => all.filter((r) => effectiveDecision(r) === d).length;
+  const focusRuns = (f: typeof runFilter) => { setRunFilter(f); runsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key === "/" && !(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA"))) { e.preventDefault(); searchRef.current?.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const go = (p: "home" | "db" | "rules") => { setOpenId(null); setPage(p); };
   const pageName = page === "rules" ? "Rules" : page === "db" ? "Database" : open ? (view(open).extracted?.invoice_number ?? open.fileName) : "Overview";
   const doneRuns = all.filter((r) => r.status === "done");
@@ -284,33 +310,103 @@ export default function Home() {
             </div>
           </div>
 
+          <section className="section board">
+            <div className="board-left">
+              <div className="panel process">
+                <div className="board-h"><h2>Process overview</h2><span className="small muted">live</span></div>
+                {[
+                  { k: "Capture", sub: "Upload or email arrives", n: all.length, tone: "blue", d: "M12 5v14M5 12h14", on: () => uploadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }) },
+                  { k: "Read", sub: "AI extracts the fields", n: all.filter((r) => view(r).extracted).length, tone: "violet", d: "M4 6h16M4 12h10M4 18h7", on: () => focusRuns("ALL") },
+                  { k: "Match", sub: "Vendor and PO found", n: all.filter((r) => view(r).match).length, tone: "pink", d: "M8 7h12M4 7h.01M8 12h12M4 12h.01M8 17h12M4 17h.01", on: () => go("rules") },
+                  { k: "Approve", sub: "No check failed", n: mix[0], tone: "green", d: "m5 12 5 5 9-10", on: () => focusRuns("APPROVED") },
+                  { k: "Review", sub: "Held for a person", n: kpis.held, tone: "peach", d: "M12 8v5M12 16h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z", on: () => focusRuns("HOLD") },
+                ].map((st, i) => (
+                  <button key={st.k} className="pstep" onClick={st.on}>
+                    <span className={`ptile t-${st.tone}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={st.d} /></svg></span>
+                    <span className="ptext"><b>{st.k}</b><span>{st.sub}</span></span>
+                    <span className={`pnum ${st.n > 0 ? "has" : ""}`}>{st.n > 0 ? st.n : i + 1}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="panel donutcard">
+                <div className="board-h"><h2>Automation status</h2></div>
+                <div className="donutrow">
+                  <Donut pct={doneRuns.length ? (mix[0] / doneRuns.length) * 100 : 0} />
+                  <div className="donutstats">
+                    <div><span>Processed</span><b>{kpis.processed}</b></div>
+                    <div><span>Auto-approved</span><b className="blue">{mix[0]}</b></div>
+                    <div><span>Needs review</span><b className="peach">{kpis.held}</b></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="board-right panel">
+              <div className="board-h"><h2>Workflows</h2><span className="small muted">Click a card to jump in</span></div>
+              <div className="wfgrid">
+                {[
+                  { t: "Invoice Capture", s: `${all.filter((r) => r.source === "email").length} by email · ${all.filter((r) => r.source !== "email").length} uploaded`, tone: "violet", d: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M12 11v6M9 14h6", on: () => uploadRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), cta: "Add invoice" },
+                  { t: "Validation & Matching", s: "19 checks against vendors and POs", tone: "pink", d: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z", on: () => go("rules"), cta: "Edit rules" },
+                  { t: "Approval Workflow", s: kpis.held ? `${kpis.held} waiting for a person` : "Queue is clear", tone: "blue", d: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4", on: () => focusRuns("HOLD"), cta: "Review queue" },
+                  { t: "Records & Audit", s: `${doneRuns.length} decisions logged`, tone: "peach", d: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6", on: () => go("db"), cta: "Open database" },
+                ].map((w) => (
+                  <button key={w.t} className={`wfcard w-${w.tone}`} onClick={w.on}>
+                    <span className="wfhead">
+                      <span className={`wftile t-${w.tone}`}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={w.d} /></svg></span>
+                      <span className="wfarrow" aria-hidden>→</span>
+                    </span>
+                    <b>{w.t}</b>
+                    <span className="wfsub">{w.s}</span>
+                    <span className="wfbar"><i /></span>
+                    <span className="wfcta">{w.cta}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+
           <section className="section kpis">
-            <article className="panel kpi hero">
+            <article className="panel kpi hero clickable-card" role="button" tabIndex={0} onClick={() => focusRuns("APPROVED")} onKeyDown={(e) => e.key === "Enter" && focusRuns("APPROVED")} title="Show auto-approved invoices">
               <div className="label">Touchless rate</div>
               <div className="value num">{kpis.autoPct}</div>
               <div className="sub"><span className="delta">↗ {mix[0]} auto-approved</span> no human needed</div>
             </article>
-            <article className="panel kpi">
+            <article className="panel kpi clickable-card" role="button" tabIndex={0} onClick={() => focusRuns("ALL")} onKeyDown={(e) => e.key === "Enter" && focusRuns("ALL")} title="Show all invoices">
               <div className="label">Invoices processed</div>
               <div className="value num">{kpis.processed}</div>
               <div className="sub"><span className="delta">{all.filter((r) => r.source === "email").length} by email</span> · rest uploaded</div>
             </article>
-            <article className="panel kpi">
+            <article className="panel kpi clickable-card" role="button" tabIndex={0} onClick={() => focusRuns("HOLD")} onKeyDown={(e) => e.key === "Enter" && focusRuns("HOLD")} title="Show invoices waiting for review">
               <div className="label">Waiting for review</div>
               <div className="value num">{kpis.held}</div>
               <div className="sub"><span className={`delta ${kpis.held ? "warn" : "good"}`}>{kpis.held ? "! needs a person" : "✓ queue clear"}</span></div>
             </article>
-            <article className="panel kpi">
+            <article className="panel kpi clickable-card" role="button" tabIndex={0} onClick={() => focusRuns("REJECTED")} onKeyDown={(e) => e.key === "Enter" && focusRuns("REJECTED")} title="Show rejected invoices">
               <div className="label">Value held or stopped</div>
               <div className="value num">{kpis.stopped}</div>
               <div className="sub"><span className="delta">⏱ {kpis.median}</span> median time to decision</div>
             </article>
           </section>
 
-          <section className="section panel">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-              <h2>Runs</h2>
-              <span className="small muted">Click a row to see the steps, checks and explanation</span>
+          <section className="section panel" ref={runsRef} style={{ scrollMarginTop: 80 }}>
+            <div className="runs-head">
+              <div>
+                <h2 style={{ marginBottom: 2 }}>Runs</h2>
+                <span className="small muted">Click a row to see the steps, checks and explanation</span>
+              </div>
+              <div className="runs-tools">
+                <div className="filters" role="tablist" aria-label="Filter runs" style={{ margin: 0 }}>
+                  {([["ALL", "All", all.length], ["APPROVED", "Approved", countOf("APPROVED")], ["HOLD", "Held", countOf("HOLD")], ["REJECTED", "Rejected", countOf("REJECTED")]] as const).map(([k, label, n]) => (
+                    <button key={k} role="tab" aria-selected={runFilter === k} className={`fchip ${runFilter === k ? "on" : ""} f-${k}`} onClick={() => setRunFilter(k)}>
+                      {label} <span className="fcount">{n}</span>
+                    </button>
+                  ))}
+                </div>
+                <label className="searchbox">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                  <input ref={searchRef} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search vendor, invoice, file…" aria-label="Search runs" />
+                  {query ? <button className="clear" onClick={() => setQuery("")} aria-label="Clear search">×</button> : <span className="kbd">/</span>}
+                </label>
+              </div>
             </div>
             {all.length === 0 ? (
               <div className="muted">No invoices processed yet. Try a sample below, upload one, or email one.</div>
@@ -319,10 +415,13 @@ export default function Home() {
                 <table>
                   <thead><tr><th>Time</th><th>Source</th><th>File</th><th>Vendor</th><th>Invoice</th><th>Total</th><th>Decision</th><th>Reason</th></tr></thead>
                   <tbody>
-                    {all.map((r) => {
+                    {shown.length === 0 && (
+                      <tr><td colSpan={8} className="muted small" style={{ textAlign: "center", padding: 28 }}>No runs match this filter. <button className="btn link" onClick={() => { setRunFilter("ALL"); setQuery(""); }}>Clear filters</button></td></tr>
+                    )}
+                    {shown.map((r, i) => {
                       const v = view(r);
                       return (
-                        <tr key={r.id} className="clickable" onClick={() => setOpenId(r.id)}>
+                        <tr key={r.id} className="clickable rowin" style={{ animationDelay: `${Math.min(i, 12) * 25}ms` }} tabIndex={0} onClick={() => setOpenId(r.id)} onKeyDown={(e) => e.key === "Enter" && setOpenId(r.id)}>
                           <td className="num small">{new Date(r.startedAt).toLocaleTimeString("en-IN")}</td>
                           <td className="small">{r.source === "email" ? <span title={r.sender}>✉ Email</span> : "Upload"}</td>
                           <td className="small">{r.fileName}</td>
@@ -330,7 +429,7 @@ export default function Home() {
                           <td className="mono small">{v.extracted?.invoice_number ?? "—"}</td>
                           <td className="num">{inr(v.extracted?.total_amount)}</td>
                           <td><Badge d={effectiveDecision(r)} />{r.override && <div className="small muted">override</div>}</td>
-                          <td className="small">{v.decision?.headline.replace(/^(Held|Rejected|Approved): /, "") ?? "…"}</td>
+                          <td className="small reason">{v.decision?.headline.replace(/^(Held|Rejected|Approved): /, "") ?? "…"}<span className="go" aria-hidden>→</span></td>
                         </tr>
                       );
                     })}
@@ -341,7 +440,7 @@ export default function Home() {
           </section>
 
           <div className="section split">
-            <section className="panel">
+            <section className="panel" ref={uploadRef}>
               <h2>Upload an invoice</h2>
               <label
                 className={`drop ${over ? "over" : ""}`}
@@ -419,13 +518,32 @@ export default function Home() {
   );
 }
 
-const EXPECT_COLOR: Record<string, string> = { Approved: "#22a35a", Hold: "#e0a540", Reject: "#b42318" };
+const EXPECT_COLOR: Record<string, string> = { Approved: "#16a36d", Hold: "#e8912f", Reject: "#c2352b" };
 const SAMPLE_GROUPS = [
   { title: "Core checks", ids: /^(H|E\d)$/ },
   { title: "Splits, matching and tolerances", ids: /^(S\d|N1|T1|P\d|X1|A1|G1|U1)$/ },
   { title: "Dates, document type, currency and GST rate", ids: /^(D\d|C1|K1|F1|R1)$/ },
   { title: "Photos and scans (LlamaParse OCR)", ids: /^I\d$/ },
 ];
+
+function Donut({ pct }: { pct: number }) {
+  const r = 42, c = 2 * Math.PI * r;
+  const [shown, setShown] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setShown(pct), 60); return () => clearTimeout(t); }, [pct]);
+  return (
+    <div className="donut" role="img" aria-label={`${Math.round(pct)}% auto-approved`}>
+      <svg viewBox="0 0 100 100">
+        <defs>
+          <linearGradient id="dg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#7aa8ff" /><stop offset="100%" stopColor="#7b5cf0" /></linearGradient>
+        </defs>
+        <circle cx="50" cy="50" r={r} fill="none" stroke="#e8effb" strokeWidth="10" />
+        <circle cx="50" cy="50" r={r} fill="none" stroke="url(#dg)" strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - shown / 100)} transform="rotate(-90 50 50)" style={{ transition: "stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1)" }} />
+      </svg>
+      <b>{Math.round(pct)}%</b>
+    </div>
+  );
+}
 
 function Icon({ d }: { d: string }) {
   return (
