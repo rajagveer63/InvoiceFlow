@@ -42,7 +42,7 @@ npm run build                   # production build (webpack; Turbopack cannot bu
 | **Rules** | Every tolerance and every check, editable in place, plus a "Try it: price check" calculator and the rule history |
 | **Database** | Every table live, the change log, and PO balances |
 
-Pages have their own links: `/#rules`, `/#db`, `/#run/<id>`. Press **Esc** on a run to go back. The layout follows the 21st.dev "Dashboard Shell" design, written in plain CSS.
+Pages have their own links: `/#rules`, `/#db`, `/#run/<id>`. Press **Esc** on a run to go back. The visual design (dark sidebar, lime accent, Geist type) comes from the Figma file "InvoiceFlow — Redesign" (https://www.figma.com/design/mOAIVLQZAdHeBvsUcSaV4d), written in plain CSS.
 
 ## Email intake
 

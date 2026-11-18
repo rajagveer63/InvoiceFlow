@@ -172,7 +172,7 @@ export default function RunDetail({ run, pdfUrl, onBack, onOverride }: {
                 {v.error && <div className="small" style={{ color: "var(--bad)", marginTop: 8 }}>Error detail: {v.error}</div>}
                 {system === "HOLD" && !run.override && !mode && (
                   <div className="actions">
-                    <button className="btn primary" onClick={() => setMode("APPROVED")}>✓ Approve anyway</button>
+                    <button className="btn accent" onClick={() => setMode("APPROVED")}>✓ Approve anyway</button>
                     <button className="btn danger" onClick={() => setMode("REJECTED")}>✕ Reject</button>
                   </div>
                 )}

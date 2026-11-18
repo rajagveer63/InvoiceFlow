@@ -230,10 +230,10 @@ export default function Home() {
             <div className="row"><b>Demo data</b><span className="num small muted">{doneRuns.length} runs</span></div>
             <div className="meter" aria-label={`${mix[0]} approved, ${mix[1]} held, ${mix[2]} rejected, ${other} other`}>
               {doneRuns.length > 0 && <>
-                <i style={{ width: `${(mix[0] / doneRuns.length) * 100}%`, background: "#22a35a" }} />
-                <i style={{ width: `${(mix[1] / doneRuns.length) * 100}%`, background: "#e0a540" }} />
+                <i style={{ width: `${(mix[0] / doneRuns.length) * 100}%`, background: "var(--ok-strong)" }} />
+                <i style={{ width: `${(mix[1] / doneRuns.length) * 100}%`, background: "var(--hold-strong)" }} />
                 <i style={{ width: `${(mix[2] / doneRuns.length) * 100}%`, background: "var(--bad)" }} />
-                <i style={{ width: `${(other / doneRuns.length) * 100}%`, background: "#b9b3a8" }} />
+                <i style={{ width: `${(other / doneRuns.length) * 100}%`, background: "#5b616e" }} />
               </>}
             </div>
             <button className="btn" style={{ width: "100%" }} onClick={reset} disabled={!!live} title="Deletes all runs and emails from the database">Reset demo</button>
@@ -248,7 +248,10 @@ export default function Home() {
           {open && page === "home" ? <><button className="btn link" onClick={() => setOpenId(null)}>Overview</button><span aria-hidden>/</span></> : null}
           <b>{pageName}</b>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {health?.email.configured && lastCheck && (
+            <span className="livepill" title="The inbox is checked every 30 seconds"><i />Inbox synced · {new Date(lastCheck).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+          )}
           {health?.email.configured && page === "home" && (
             <button className="btn" onClick={() => checkInbox(true)} disabled={checking}>
               <Icon d="M3 7l9 6 9-6M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />{checking ? "Checking…" : "Check inbox"}
@@ -277,20 +280,20 @@ export default function Home() {
           <div className="page-title">
             <div>
               <h1>Overview</h1>
-              <p>Invoice in → explained Approve / Hold / Reject out. The AI reads; the rules decide.</p>
+              <p>Every invoice runs through 19 checks. The AI reads, the rules decide, and you only see the exceptions.</p>
             </div>
           </div>
 
           <section className="section kpis">
+            <article className="panel kpi hero">
+              <div className="label">Touchless rate</div>
+              <div className="value num">{kpis.autoPct}</div>
+              <div className="sub"><span className="delta">↗ {mix[0]} auto-approved</span> no human needed</div>
+            </article>
             <article className="panel kpi">
               <div className="label">Invoices processed</div>
               <div className="value num">{kpis.processed}</div>
               <div className="sub"><span className="delta">{all.filter((r) => r.source === "email").length} by email</span> · rest uploaded</div>
-            </article>
-            <article className="panel kpi">
-              <div className="label">Auto-approved</div>
-              <div className="value num">{kpis.autoPct}</div>
-              <div className="sub"><span className="delta good">↗ {mix[0]} approved</span> no human needed</div>
             </article>
             <article className="panel kpi">
               <div className="label">Waiting for review</div>
