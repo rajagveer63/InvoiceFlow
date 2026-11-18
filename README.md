@@ -4,6 +4,8 @@ An invoice (PDF or photo) goes in. An explained **Approve / Hold / Reject** deci
 
 **Live demo:** https://invoiceflow-murex-psi.vercel.app
 
+Every push to `main` deploys to Vercel automatically (secrets are set in Vercel, never in the repo).
+
 - **The AI reads.** An LLM classifies the document and extracts the invoice fields. Every value is checked against the document text ("✓ found in document" or "location not found").
 - **The rules decide.** 19 fixed checks run against the vendor master and the purchase orders. The AI never makes the decision.
 - **The AI explains.** A 2-3 sentence plain-English summary is written only from the check results. If the AI is down, a rule-based "Auto summary" is shown instead.
